@@ -1,26 +1,28 @@
-async function uploadAndDrawRect() {
-    const fileInput = document.getElementById("imageInput");
-    const file = fileInput.files[0];
+let sound = true;
 
-    console.log("called");
+const sounds = {
+    neutral: new Audio("/static/audio/neutral.mp3"),
+    happy: new Audio("/static/audio/happy.mp3"),
+    sad: new Audio("/static/audio/sad.mp3"),
+    surprise: new Audio("/static/audio/surprise.mp3"),
+    anger: new Audio("/static/audio/anger.mp3")
+}
 
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch("/recognize", {
-        method: "POST",
-        body: formData,
-    });
-
-    const json = await response.json();
-
-    console.log(json, "ascasc");
+function toggleSound() {
+    const button = document.getElementById("upload-button");
+    if (sound) button.innerText = "Turn on sound";   
+    else button.innerText = "Turn off sound";
+    
+    sound = !sound;
 }
 
 const video = document.getElementById("videoElement");
 
 const canvas = document.getElementById('boxes');
 const context = canvas.getContext('2d');
+
+let beforeEmotion = undefined;
+let count = 0;
 
 function drawBox(xMin, yMin, xMax, yMax, emotion) {
     switch (emotion) {
@@ -53,6 +55,10 @@ function drawBox(xMin, yMin, xMax, yMax, emotion) {
     context.fillText(emotion, xMin, yMin - 15); // 텍스트, x, y
 }
 
+setInterval(() => {
+    if (count > 0) count--;
+}, 1000);
+
 function captureAndSendFrame() {
     const imageCanvas = document.createElement('canvas');
     imageCanvas.width = video.videoWidth;
@@ -69,7 +75,7 @@ function captureAndSendFrame() {
         formData.append('file', blob, 'file.jpg');
         
         // 이미지 데이터를 서버로 전송 (Fetch API 사용)
-        fetch('http://127.0.0.1:5000/recognize', {
+        fetch('http://172.20.83.120:5000/recognize', {
             method: 'POST',
             body: formData,
         })
@@ -83,6 +89,15 @@ function captureAndSendFrame() {
             context.clearRect(0, 0, canvas.width, canvas.height);
             const ratio = 600 / 640;
             const fix = 30;
+
+            if (beforeEmotion !== boxes[0].emotion && count <= 0 && sound) {
+                sounds[boxes[0].emotion].play();
+
+                beforeEmotion = boxes[0].emotion;
+
+                count = 2;
+            }
+
             for (const box of boxes) {
                 drawBox(box.xMin * ratio, box.yMin * ratio - fix, box.xMax * ratio, box.yMax * ratio - fix, box.emotion);
             }
