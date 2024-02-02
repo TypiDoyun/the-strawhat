@@ -1,8 +1,19 @@
-import os
 import cv2
+import json
+from http import HTTPStatus
 import numpy as np
 from openvino.runtime import Core 
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, jsonify
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)
 
 app = Flask(__name__)
 ie = Core()
@@ -33,35 +44,43 @@ def DrawBoundingBoxes(output, frame, conf=0.5):
     predictions = output[0][0]                         # 하위 집합 데이터 프레임
     confidence = predictions[:,2]                       # conf 값 가져오기 [image_id, label, conf, x_min, y_min, x_max, y_max]
   
-    top_predictions = predictions[(confidence>conf)]         # 임계값보다 큰 conf 값을 가진 예측만 선택
+    top_predictions = predictions[(confidence>conf)]      # 임계값보다 큰 conf 값을 가진 예측만 선택
  
     for detection in top_predictions:
         box = (detection[3:7]* np.array([w, h, w, h])).astype("int") # 상자 위치 결정
-        (xmin, ymin, xmax, ymax) = box   # xmin, ymin, xmax, ymax에 상자 위치 값 지정
+        # (xmin, ymin, xmax, ymax) = box   # xmin, ymin, xmax, ymax에 상자 위치 값 지정
         boxes.append(box)
-        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 0, 255), 2)       # 사각형 만들기
+        # cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 0, 255), 2)       # 사각형 만들기
     
     return boxes
 
 def DrawText(output, frame, face_position):
     
     emotions = {
-        0:"neutral",
-        1:"happy",
-        2:"sad",
-        3:"surprise",
-        4:"anger"
+        0:"neutral", # white
+        1:"happy", # yellow
+        2:"sad", # blue
+        3:"surprise", # green
+        4:"anger" # red
     }
                 
     predictions = output[0,:,0,0]
    
     topresult_index = np.argmax(predictions)
     emotion = emotions[topresult_index]
+
+    return {
+        "xMin": face_position[0],
+        "yMin": face_position[1],
+        "xMax": face_position[2],
+        "yMax": face_position[3],
+        "emotion": emotion
+    }
    
-    cv2.putText(frame, emotion,
-                (face_position[0],face_position[1]),
-                cv2.FONT_HERSHEY_SIMPLEX, 2, 
-                (255, 255,255), 4)
+    # cv2.putText(frame, emotion,
+    #             (face_position[0],face_position[1]),
+    #             cv2.FONT_HERSHEY_SIMPLEX, 2, 
+    #             (255, 255,255), 4)
 
 @app.route("/", methods=["GET"])
 def index():
@@ -78,6 +97,9 @@ def recognize():
     if file.filename == '':
         print("error 1")
         return 'No selected file'
+    
+    # params = request.get_json()
+    # print(params)
 
     image_bytes = file.read()
     image_np = np.frombuffer(image_bytes, np.uint8)
@@ -89,6 +111,8 @@ def recognize():
 
     face_output = face_model([input_frame])[face_output_layer]
     boxes = DrawBoundingBoxes(face_output, frame, conf=0.5)
+
+    emotionBoxes = []
     
     if boxes is not None:
         
@@ -104,15 +128,17 @@ def recognize():
             input_image = np.expand_dims(transposed_image, 0)
     
             emotion_output = emotion_model([input_image])[emotion_output_layer]
-            DrawText(emotion_output, frame, box)
+            emotionBoxes.append(DrawText(emotion_output, frame, box))
 
-    output_filepath = "output.jpg"
+    # output_filepath = "output.jpg"
 
-    cv2.imwrite(output_filepath, frame)
+    # cv2.imwrite(output_filepath, frame)
 
-    return send_file(output_filepath, mimetype='image/jpeg')
+    result = { "boxes": emotionBoxes }
+
+    # return send_file(output_filepath, mimetype='image/jpeg')
+    return json.dumps(result, cls=NpEncoder)
 
 if __name__ == "__main__":
     # app.run()
-    app.run(host="172.20.83.120")
-    # app.run(host="0.0.0.0")
+    app.run(host="127.0.0.1")
