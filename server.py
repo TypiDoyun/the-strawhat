@@ -141,4 +141,4 @@ def recognize():
 
 if __name__ == "__main__":
     # app.run()
-    app.run(host="172.20.83.120")
+    app.run()

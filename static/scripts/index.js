@@ -9,9 +9,11 @@ const sounds = {
 }
 
 function toggleSound() {
-    const button = document.getElementById("upload-button");
+    const button = document.getElementById("toggle-button");
     if (sound) button.innerText = "Turn on sound";   
     else button.innerText = "Turn off sound";
+
+    console.log("acsasc");
     
     sound = !sound;
 }
@@ -64,8 +66,6 @@ function captureAndSendFrame() {
     imageCanvas.width = video.videoWidth;
     imageCanvas.height = video.videoHeight;
 
-    console.log(video.videoWidth);
-    console.log(video.videoHeight);
     const imageContext = imageCanvas.getContext('2d');
     imageContext.drawImage(video, 0, 0, imageCanvas.width, imageCanvas.height);
     
@@ -75,7 +75,7 @@ function captureAndSendFrame() {
         formData.append('file', blob, 'file.jpg');
         
         // 이미지 데이터를 서버로 전송 (Fetch API 사용)
-        fetch('http://172.20.83.120:5000/recognize', {
+        fetch('http://127.0.0.1:5000/recognize', {
             method: 'POST',
             body: formData,
         })
